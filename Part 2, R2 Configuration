@@ -1,0 +1,188 @@
+version 12.1X47-D15.4;
+
+system {
+    host-name R2;
+
+    root-authentication {
+        encrypted-password "$1$xH9xJoL6$MFOUYnZr4.Qj2NM24XInz/";
+    }
+
+    services {
+        ssh;
+    }
+}
+
+interfaces {
+    ge-0/0/2 {
+        unit 0 {
+            family inet {
+                address 10.10.10.12/24;
+            }
+        }
+    }
+
+    ge-0/0/3 {
+        unit 0 {
+            family inet {
+                address 192.168.12.1/24;
+            }
+        }
+    }
+
+    ge-0/0/4 {
+        unit 0 {
+            family inet {
+                address 192.168.13.1/24;
+            }
+        }
+    }
+
+    ge-0/0/5 {
+        unit 0 {
+            family inet {
+                address 10.56.16.80/22;
+            }
+        }
+    }
+}
+
+forwarding-options {
+    dhcp-relay {
+        server-group {
+            DHCP-SERVER {
+                10.10.10.11;
+            }
+        }
+
+        group DHCP-RELAY {
+            interface ge-0/0/3.0;
+            interface ge-0/0/4.0;
+            active-server-group DHCP-SERVER;
+        }
+    }
+}
+
+routing-options {
+    static {
+        route 192.168.10.0/24 next-hop 10.10.10.11;
+        route 192.168.11.0/24 next-hop 10.10.10.11;
+        route 0.0.0.0/0 next-hop 10.56.16.1;
+    }
+}
+
+security {
+    nat {
+        source {
+            rule-set trust-to-untrust {
+                from zone trust;
+                to zone untrust;
+
+                rule rule-any-to-any {
+                    match {
+                        source-address 0.0.0.0/0;
+                        destination-address 0.0.0.0/0;
+                    }
+
+                    then {
+                        source-nat {
+                            interface;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    policies {
+        from-zone trust to-zone trust {
+            policy default-permit {
+                match {
+                    source-address any;
+                    destination-address any;
+                    application any;
+                }
+
+                then {
+                    permit;
+                }
+            }
+        }
+
+        from-zone trust to-zone untrust {
+            policy internet-access {
+                match {
+                    source-address any;
+                    destination-address any;
+                    application any;
+                }
+
+                then {
+                    permit;
+                }
+            }
+        }
+
+        from-zone untrust to-zone trust {
+            policy default-deny {
+                match {
+                    source-address any;
+                    destination-address any;
+                    application any;
+                }
+
+                then {
+                    deny;
+                }
+            }
+        }
+    }
+
+    zones {
+        security-zone trust {
+            interfaces {
+                ge-0/0/2.0 {
+                    host-inbound-traffic {
+                        system-services {
+                            ping;
+                            ssh;
+                            dhcp;
+                        }
+                    }
+                }
+
+                ge-0/0/3.0 {
+                    host-inbound-traffic {
+                        system-services {
+                            ping;
+                            ssh;
+                            dhcp;
+                        }
+                    }
+                }
+
+                ge-0/0/4.0 {
+                    host-inbound-traffic {
+                        system-services {
+                            ping;
+                            ssh;
+                            dhcp;
+                        }
+                    }
+                }
+            }
+        }
+
+        security-zone untrust {
+            interfaces {
+                ge-0/0/5.0 {
+                    host-inbound-traffic {
+                        system-services {
+                            ping;
+                            ssh;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
