@@ -1,7 +1,7 @@
-## Router provides DHCP on ge-0/0/3 and ge-0/0/4
-## DHCP + Internet NAT configuration
-## Based on Config 1 and Config 2
-
+## Router provides DHCP on ge-0/0/1 - ge-0/0/3  
+## Extended DHCP configuration  
+## By Per Dahlstroem
+## Modified by David S. Koppel and Søren Jakobsen
 version 12.1X47-D15.4;
 
 system {
