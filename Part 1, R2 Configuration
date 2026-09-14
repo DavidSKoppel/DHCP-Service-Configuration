@@ -1,0 +1,261 @@
+## Router provides DHCP on ge-0/0/3 and ge-0/0/4
+## DHCP + Internet NAT configuration
+## Based on Config 1 and Config 2
+
+version 12.1X47-D15.4;
+
+system {
+    host-name R2;
+
+    root-authentication {
+        encrypted-password "$1$xH9xJoL6$MFOUYnZr4.Qj2NM24XInz/";
+    }
+
+    services {
+        ssh;
+
+        dhcp-local-server {
+            group Net1 {
+                interface ge-0/0/3.0;
+            }
+
+            group Net2 {
+                interface ge-0/0/4.0;
+            }
+        }
+    }
+}
+
+interfaces {
+
+    /* Connection to upstream/internal router */
+    ge-0/0/2 {
+        unit 0 {
+            family inet {
+                address 10.10.10.12/24;
+            }
+        }
+    }
+
+    /* LAN 1 */
+    ge-0/0/3 {
+        unit 0 {
+            family inet {
+                address 192.168.12.1/24;
+            }
+        }
+    }
+
+    /* LAN 2 */
+    ge-0/0/4 {
+        unit 0 {
+            family inet {
+                address 192.168.13.1/24;
+            }
+        }
+    }
+
+    /* Internet/WAN interface */
+    ge-0/0/5 {
+        unit 0 {
+            family inet {
+                address 10.56.16.80/22;
+            }
+        }
+    }
+}
+
+routing-options {
+    static {
+
+        /* Route to internal router */
+        route 192.168.10.0/24 next-hop 10.10.10.11;
+        route 192.168.11.0/24 next-hop 10.10.10.11;
+
+        /* Default route to Internet */
+        route 0.0.0.0/0 next-hop 10.56.16.1;
+    }
+}
+
+security {
+
+    /*
+     * Source NAT:
+     * Translate private LAN addresses to the IP address
+     * of the WAN interface ge-0/0/5.0 (10.56.16.80)
+     */
+    nat {
+        source {
+            rule-set trust-to-untrust {
+                from zone trust;
+                to zone untrust;
+
+                rule rule-any-to-any {
+                    match {
+                        source-address 0.0.0.0/0;
+                        destination-address 0.0.0.0/0;
+                    }
+
+                    then {
+                        source-nat {
+                            interface;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    policies {
+
+        /* Allow traffic between internal interfaces */
+        from-zone trust to-zone trust {
+            policy default-permit {
+                match {
+                    source-address any;
+                    destination-address any;
+                    application any;
+                }
+
+                then {
+                    permit;
+                }
+            }
+        }
+
+        /* Allow LAN clients to access the Internet */
+        from-zone trust to-zone untrust {
+            policy internet-access {
+                match {
+                    source-address any;
+                    destination-address any;
+                    application any;
+                }
+
+                then {
+                    permit;
+                }
+            }
+        }
+
+        /* Block unsolicited traffic from Internet to LAN */
+        from-zone untrust to-zone trust {
+            policy default-deny {
+                match {
+                    source-address any;
+                    destination-address any;
+                    application any;
+                }
+
+                then {
+                    deny;
+                }
+            }
+        }
+    }
+
+    zones {
+
+        /* Internal/LAN interfaces */
+        security-zone trust {
+            interfaces {
+
+                ge-0/0/2.0 {
+                    host-inbound-traffic {
+                        system-services {
+                            ping;
+                            ssh;
+                        }
+                    }
+                }
+
+                ge-0/0/3.0 {
+                    host-inbound-traffic {
+                        system-services {
+                            ping;
+                            ssh;
+                            dhcp;
+                        }
+                    }
+                }
+
+                ge-0/0/4.0 {
+                    host-inbound-traffic {
+                        system-services {
+                            ping;
+                            ssh;
+                            dhcp;
+                        }
+                    }
+                }
+            }
+        }
+
+        /* Internet/WAN interface */
+        security-zone untrust {
+            interfaces {
+                ge-0/0/5.0 {
+                    host-inbound-traffic {
+                        system-services {
+                            ping;
+                            ssh;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+access {
+    address-assignment {
+
+        /* DHCP for 192.168.12.0/24 */
+        pool Net1 {
+            family inet {
+                network 192.168.12.0/24;
+
+                range USERS {
+                    low 192.168.12.33;
+                    high 192.168.12.44;
+                }
+
+                dhcp-attributes {
+                    maximum-lease-time 60;
+
+                    name-server {
+                        8.8.8.8;
+                    }
+
+                    router {
+                        192.168.12.1;
+                    }
+                }
+            }
+        }
+
+        /* DHCP for 192.168.13.0/24 */
+        pool Net2 {
+            family inet {
+                network 192.168.13.0/24;
+
+                range USERS {
+                    low 192.168.13.55;
+                    high 192.168.13.66;
+                }
+
+                dhcp-attributes {
+                    maximum-lease-time 60;
+
+                    name-server {
+                        8.8.8.8;
+                    }
+
+                    router {
+                        192.168.13.1;
+                    }
+                }
+            }
+        }
+    }
+}
